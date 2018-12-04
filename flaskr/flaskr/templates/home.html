@@ -1,0 +1,362 @@
+{% extends "layout.html" %} {% block body %}
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/chartist.js/latest/chartist.min.css">
+<script src="https://cdn.jsdelivr.net/chartist.js/latest/chartist.min.js"></script>
+
+<section class="content">
+  <div class="block-header">
+    <h2>DASHBOARD</h2>
+  </div>
+  <!-- CPU Usage -->
+  <div class="row clearfix">
+    <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12">
+      <div class="card">
+        <div class="header">
+          <div class="row clearfix">
+            <div class="col-xs-12 col-sm-6 align-right">
+            </div>
+          </div>
+          <div class="body">
+
+            <h1>Number of Active Cellphones Per Country</h1>
+
+            <svg width="1520" height="820"></svg>
+            <script src="https://d3js.org/d3.v5.min.js"></script>
+
+            <script>
+              var svg = d3.select("svg"),
+                margin = { top: 20, right: 80, bottom: 30, left: 70 },
+                width = svg.attr("width") - margin.left - margin.right,
+                height = svg.attr("height") - margin.top - margin.bottom,
+                g = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+              var parseTime = d3.timeParse("%Y%m%d");
+              var logScale = d3.scaleLog()
+                .domain([10, 100000])
+                .range([0, 600]);
+
+              var x = d3.scaleTime().range([0, width]),
+                y = d3.scaleLog().range([height, 0]),
+                z = d3.scaleOrdinal(d3.schemeCategory10);
+
+              var line = d3.line()
+                .curve(d3.curveBasis)
+                .x(function (d) { return x(d.date); })
+                .y(function (d) { return y(d.temperature); });
+
+              function compare(a, b) {
+                if (a.date < b.date)
+                  return -1;
+                if (a.date > b.date)
+                  return 1;
+                return 0;
+              }
+
+              //d3.csv("{{ url_for('static', filename='data/cellphone.csv') }}", type, function(error, data) {
+              console.log("here!!");
+              $.get("/jsondata", function (data) {
+
+                data = JSON.parse(data);
+                console.log(JSON.stringify(data));
+                //if (error) throw error;
+
+                console.log("dATA", data)
+
+                var dates = [];
+
+
+                var cities = data.map(function (d) {
+                  var allobjs = [];
+
+
+                  $.each(d.year, function (i, e) {
+                    var date = i.replace("y", "") + "1010";
+                    date = parseTime(date);
+                    dates.push(date);
+                    if (parseInt(e) != 0) {
+                      var obj = { date: date, temperature: parseInt(e) };
+                      allobjs.push(obj);
+                    }
+
+                  });
+                  allobjs.sort(compare);
+                  return {
+                    id: d.Country,
+                    values: allobjs
+                  };
+                });
+
+                x.domain(d3.extent(dates, function (d) { return d; }));
+
+                var myMin = d3.min(cities, function (c) {
+                  return d3.min(c.values, function (d) {
+                    return d.temperature;
+                  });
+                });
+
+                var myMax = d3.max(cities, function (c) { return d3.max(c.values, function (d) { return d.temperature; }); });
+
+
+                y.domain([
+                  myMin,
+                  myMax
+                ]);
+
+                z.domain(cities.map(function (c) { return c.id; }));
+
+                g.append("g")
+                  .attr("class", "axis axis--x")
+                  .attr("transform", "translate(0," + height + ")")
+                  .call(d3.axisBottom(x));
+
+                g.append("g")
+                  .attr("class", "axis axis--y")
+                  .call(d3.axisLeft(y))
+                  .append("text")
+                  .attr("transform", "rotate(-90)")
+                  .attr("y", 6)
+                  .attr("dy", "0.71em")
+                  .attr("fill", "#000")
+                  .text("Nº, Cellphone");
+
+                var city = g.selectAll(".city")
+                  .data(cities)
+                  .enter().append("g")
+                  .attr("class", "city");
+
+                city.append("path")
+                  .attr("class", "line")
+                  .attr("d", function (d) { return line(d.values); }) //console.log(d.id,d.values)
+                  .style("stroke", function (d) { return z(d.id); })
+                  .style("fill", 'transparent').on("mouseover", function () {
+                    console.log("doing it");
+                  });
+
+                city.append("text")
+                  .datum(function (d) { return { id: d.id, value: d.values[d.values.length - 1] }; })
+                  .attr("transform", function (d) { return "translate(" + x(d.value.date) + "," + y(d.value.temperature) + ")"; })
+                  .attr("x", 3)
+                  .attr("dy", "0.35em")
+                  .style("font", "10px sans-serif")
+                  .text(function (d) { return d.id; });
+              });
+
+              /*const mouseOver = g
+                .append('g')
+                .attr('class', 'mouse-over-effects');
+            
+              mouseOver
+                .append('path')
+                .attr('class', 'mouse-line')
+                .style('stroke', 'black')
+                .style('stroke-width', '1px')
+                .style('opacity', '0');
+                console.log("Mouseoverworking")
+              */
+
+              var mouseG = svg.append("g")
+                .attr("class", "mouse-over-effects");
+
+              mouseG.append("path") // this is the black vertical line to follow mouse
+                .attr("class", "mouse-line")
+                .style("stroke", "black")
+                .style("stroke-width", "1px")
+                .style("opacity", "0");
+
+              var lines = document.getElementsByClassName('line');
+
+              var mousePerLine = mouseG.selectAll('.mouse-per-line')
+                .data(cities)
+                .enter()
+                .append("g")
+                .attr("class", "mouse-per-line");
+
+              mousePerLine.append("circle")
+                .attr("r", 7)
+                .style("stroke", function (d) {
+                  return color(d.name);
+                })
+                .style("fill", "none")
+                .style("stroke-width", "1px")
+                .style("opacity", "0");
+
+              mousePerLine.append("text")
+                .attr("transform", "translate(10,3)");
+
+              mouseG.append('svg:rect') // append a rect to catch mouse movements on canvas
+                .attr('width', width) // can't catch mouse events on a g element
+                .attr('height', height)
+                .attr('fill', 'none')
+                .attr('pointer-events', 'all')
+                .on('mouseout', function () { // on mouse out hide line, circles and text
+                  d3.select(".mouse-line")
+                    .style("opacity", "0");
+                  d3.selectAll(".mouse-per-line circle")
+                    .style("opacity", "0");
+                  d3.selectAll(".mouse-per-line text")
+                    .style("opacity", "0");
+                })
+                .on('mouseover', function () { // on mouse in show line, circles and text
+                  d3.select(".mouse-line")
+                    .style("opacity", "1");
+                  d3.selectAll(".mouse-per-line circle")
+                    .style("opacity", "1");
+                  d3.selectAll(".mouse-per-line text")
+                    .style("opacity", "1");
+                })
+                .on('mousemove', function () { // mouse moving over canvas
+                  var mouse = d3.mouse(this);
+
+                  d3.selectAll(".mouse-per-line")
+                    .attr("transform", function (d, i) {
+
+                      var xDate = x.invert(mouse[0]),
+                        bisect = d3.bisector(function (d) { return d.date; }).left;
+                      idx = bisect(d.values, xDate);
+
+                      d3.select(this).select('text')
+                        .text(y.invert(y(d.values[idx].temperature)).toFixed(2));
+
+                      d3.select(".mouse-line")
+                        .attr("d", function () {
+                          var data = "M" + x(d.values[idx].date) + "," + height;
+                          data += " " + x(d.values[idx].date) + "," + 0;
+                          return data;
+                        });
+                      return "translate(" + x(d.values[idx].date) + "," + y(d.values[idx].temperature) + ")";
+                    });
+                });
+
+              function type(d, _, columns) {
+                d.date = parseTime(d.date);
+                for (var i = 1, n = columns.length, c; i < n; ++i) d[c = columns[i]] = +d[c];
+                return d;
+              }
+
+            </script>
+
+            <!-- https://stackoverflow.com/questions/43811434/error-path-attribute-d-expected-number-mnan-nanlnan-nan/43811720 -->
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12">
+      <div class="card">
+        <div class="header">
+          <div class="row clearfix">
+            <div class="col-xs-12 col-sm-6 align-right">
+            </div>
+          </div>
+          <div class="body">
+
+
+
+            <div id="demo">
+              <h1>Number of Active Cellphones Table</h1>
+
+              <!-- Responsive table starts here -->
+              <!-- For correct display on small screens you must add 'data-title' to each 'td' in your table -->
+              <div class="table-responsive-vertical shadow-z-1">
+                <!-- Table starts here -->
+                <table id="table" class="table table-hover table-mc-light-blue">
+                  <thead>
+                    <tr>
+                      <th>Country</th>
+                      <th>1990</th>
+                      <th>2000</th>
+                      <th>2010</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td data-title="ID">Afghanistan</td>
+                      <td data-title="Name">0</td>
+                      <td data-title="Link">0</td>
+                      <td data-title="Status">13000000</td>
+                    </tr>
+                    <tr>
+                      <td data-title="ID">Argentina</td>
+                      <td data-title="Name">12000</td>
+                      <td data-title="Link">6487950</td>
+                      <td data-title="Status">53700000</td>
+                    </tr><tr>
+                      <td data-title="ID">Australia</td>
+                      <td data-title="Name">184943</td>
+                      <td data-title="Link">8562000</td>
+                      <td data-title="Status">22500000</td>
+                    </tr><tr>
+                      <td data-title="ID">Belgium</td>
+                      <td data-title="Name">42880</td>
+                      <td data-title="Link">5629000</td>
+                      <td data-title="Status">12154041</td>
+                    </tr>
+                    </tr><tr>
+                      <td data-title="ID">Canada</td>
+                      <td data-title="Name">583766</td>
+                      <td data-title="Link">8727000</td>
+                      <td data-title="Status">24037372</td>
+                    </tr>
+                    </tr><tr>
+                      <td data-title="ID">China</td>
+                      <td data-title="Name">18319</td>
+                      <td data-title="Link">85260000</td>
+                      <td data-title="Status">859003000</td>
+                    </tr>
+                    </tr><tr>
+                      <td data-title="ID">Cuba</td>
+                      <td data-title="Name">0</td>
+                      <td data-title="Link">6536</td>
+                      <td data-title="Status">1003015</td>
+                    </tr>
+                    </tr><tr>
+                      <td data-title="ID">Denmark</td>
+                      <td data-title="Name">148220</td>
+                      <td data-title="Link">3363552</td>
+                      <td data-title="Status">6981000</td>
+                    </tr>
+                    </tr><tr>
+                      <td data-title="ID">Egypt</td>
+                      <td data-title="Name">4000</td>
+                      <td data-title="Link">1359900</td>
+                      <td data-title="Status">70661005</td>
+                    </tr>
+                    </tr><tr>
+                      <td data-title="ID">Germany</td>
+                      <td data-title="Name">272609</td>
+                      <td data-title="Link">48202000</td>
+                      <td data-title="Status">104560000</td>
+                    </tr>
+                    </tr><tr>
+                      <td data-title="ID">New Zealand</td>
+                      <td data-title="Name">54100</td>
+                      <td data-title="Link">1542000</td>
+                      <td data-title="Status">4710000</td>
+                    </tr>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+          </div>
+
+
+
+
+
+
+
+        </div>
+      </div>
+    </div>
+
+
+</section>
+
+
+
+
+
+{% endblock %}
